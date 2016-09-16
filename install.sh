@@ -35,6 +35,13 @@ EOF
 
 check_device()
 {
+    echo " * Checking access permissions..."
+
+    if [ "$(sudo id -u)" != "0" ]; then
+        echo "ERR: please make sure you are allowed to run 'sudo'!"
+        exit 1
+    fi
+
     echo " * Checking the device in $DEVICE_LOCATION..."
 
     if [[ -z "$DEVICE_LOCATION" ]]; then
@@ -253,15 +260,9 @@ copy_files()
         exit 1
     fi
 
-    KERNEL_DIR="./out/target/product/rpi3/obj/KERNEL_OBJ/arch/arm/boot/dts"
-    if [ ! -d $KERNEL_DIR ]; then
-        echo "ERR: kernel directory not found!"
-        exit 1
-    fi
-
-    ZIMAGE_DIR="./out/target/product/rpi3/kernel"
-    if [ ! -f $ZIMAGE_DIR ]; then
-        echo "ERR: kernel image not found!"
+    DATA_DIR="./out/target/product/rpi3/data"
+    if [ ! -d $DATA_DIR ]; then
+        echo "ERR: data directory not found!"
         exit 1
     fi
 
@@ -285,14 +286,8 @@ copy_files()
     sudo mkdir -p $DIR_NAME
     sudo mount -t vfat -o rw ${DEVICE_LOCATION}1 $DIR_NAME
 
-    echo "   - copying boot files"
-    sudo cp $BOOT_DIR/* $DIR_NAME/
-
-    echo "   - copying kernel files"
-    sudo mkdir $DIR_NAME/overlays
-    sudo cp $ZIMAGE_DIR $DIR_NAME/zImage
-    sudo cp $KERNEL_DIR/bcm2710-rpi-3-b.dtb $DIR_NAME/
-    sudo cp $KERNEL_DIR/overlays/vc4-kms-v3d.dtbo $DIR_NAME/overlays/
+    echo "   - copying boot and kernel files"
+    sudo cp -r $BOOT_DIR/* $DIR_NAME/
 
     echo "   - copying ramdisk"
     sudo cp $RAMDISK_IMG $DIR_NAME/
@@ -303,6 +298,19 @@ copy_files()
 
     echo "   - writing the system image"
     sudo dd if=$SYSTEM_IMG of=${DEVICE_LOCATION}2 bs=1M
+
+    DIR_NAME="/media/rpi-sd-data"
+    echo "   - mounting the data partition to $DIR_NAME"
+    sudo mkdir -p $DIR_NAME
+    sudo mount -t ext4 -o rw ${DEVICE_LOCATION}4 $DIR_NAME
+
+    echo "   - copying userdata"
+    sudo cp -r $DATA_DIR/* $DIR_NAME/
+
+    echo "   - unmounting the data partition"
+    sudo umount $DIR_NAME
+    sudo rm -rf $DIR_NAME
+
 }
 
 # --------------------------------------
